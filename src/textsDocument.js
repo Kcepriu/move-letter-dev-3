@@ -6,6 +6,7 @@ export class TextsDocument {
   #isMouseDown = false;
   #isMovingLetter = false;
   #isAllowMovingLetter = false;
+  #isShowMovingText = false;
 
   constructor(
     classNameTextsDocument = 'texts-document',
@@ -44,18 +45,49 @@ export class TextsDocument {
   }
 
   #restoreOriginalElement() {
-    if (!this.movingStructure.isOriginalDocument()) return;
+    if (this.movingStructure.isExistOriginalFromDocument()) {
+      this.nodeFunction.replaceChild(
+        this.movingStructure.originalElementFrom,
+        this.movingStructure.elementFrom
+      );
+    }
 
-    this.nodeFunction.replaceChild(
-      this.movingStructure.originalElementFrom,
-      this.movingStructure.elementFrom
-    );
+    if (this.movingStructure.isExistOriginalToDocument()) {
+      this.nodeFunction.replaceChild(
+        this.movingStructure.originalElementTo,
+        this.movingStructure.elementTo
+      );
+    }
   }
 
   #clearToMovingStructure() {
     this.#restoreOriginalElement();
 
     this.movingStructure.clearStructure();
+  }
+
+  #addMovingLetterToMovingStructure(point) {
+    const foundElementTo = this.nodeFunction.findLineElementUnderCoordinates(
+      this.classNameTextLine,
+      point
+    );
+
+    if (!foundElementTo) return;
+
+    if (!this.movingStructure.isElementToEqualElementFrom(foundElementTo)) {
+      this.movingStructure.addElementTo(foundElementTo);
+
+      if (!this.nodeFunction.replaceSplitsCopyTextElement(foundElementTo)) {
+        this.#clearToMovingStructure();
+        return false;
+      }
+    }
+
+    const foundElementToMove = this.nodeFunction.findElementWithLetter(point);
+
+    if (!foundElementToMove || !foundElementToMove.textContent) return false;
+
+    this.movingStructure.elementToMove = foundElementToMove;
   }
 
   #addLetterToMovingStructure(point) {
@@ -67,13 +99,15 @@ export class TextsDocument {
     if (
       !foundElementFrom ||
       (this.movingStructure.isMovingLettersNotEmpty() &&
-        !this.movingStructure.isSavedElementEqual(foundElementFrom))
+        !this.movingStructure.isSavedElementFromEqualElementFrom(
+          foundElementFrom
+        ))
     )
       return false;
 
     if (
       !this.movingStructure.isSavedElement() ||
-      !this.movingStructure.isSavedElementEqual(foundElementFrom)
+      !this.movingStructure.isSavedElementFromEqualElementFrom(foundElementFrom)
     ) {
       this.movingStructure.addElementFrom(foundElementFrom);
 
@@ -100,15 +134,23 @@ export class TextsDocument {
     return true;
   }
 
+  #movingChosenLetter() {
+    if (!this.movingStructure.elementToMove) return;
+    this.movingStructure.toMoveLetters();
+  }
+
   // * Moving text
   #showMovingText = () => {
     this.movingTextsDocumentRef.style.display = 'block';
     this.movingTextsDocumentRef.textContent =
       this.movingStructure.getTextMovingLetters();
+
+    this.#isShowMovingText = true;
   };
 
   #hideMovingText = () => {
     this.movingTextsDocumentRef.style.display = 'none';
+    this.#isShowMovingText = false;
   };
 
   #moveMovingText = point => {
@@ -138,22 +180,24 @@ export class TextsDocument {
   #handleMouseUp = e => {
     this.#isMouseDown = false;
     this.#isAllowMovingLetter = false;
-    this.#isMovingLetter = false;
     this.#hideMovingText();
 
     document.removeEventListener('mousemove', this.#handleMouseMove);
 
-    if (!this.#isControlDown) {
-      // отут треба знайти де ми знаходимось (над яким елементом і над чкою буквою)
-      //Якщо над "Чужим елементом, то із старого видаляємл в новий додаємо
-      //Якщо над тим самим звідки забираємо то тут треба продумати як видаляти і вставляти
-      //ми можемо вставляти лівіше вибраних, правіше і помі ж вибрних
+    if (this.#isControlDown) return;
 
-      this.#clearToMovingStructure({
+    if (this.#isMovingLetter) {
+      this.#addMovingLetterToMovingStructure({
         x: e.clientX,
         y: e.clientY,
       });
+
+      this.#movingChosenLetter();
     }
+
+    this.#clearToMovingStructure();
+
+    this.#isMovingLetter = false;
   };
 
   // #handleMouseMove = _.debounce(e => {
@@ -167,10 +211,9 @@ export class TextsDocument {
   #handleMouseMove = e => {
     if (!this.#isAllowMovingLetter) return;
 
-    if (!this.#isMovingLetter) {
-      this.#isMovingLetter = true;
-      this.#showMovingText();
-    }
+    this.#isMovingLetter = true;
+    if (!this.#isShowMovingText) this.#showMovingText();
+
     this.#moveMovingText({ x: e.clientX, y: e.clientY });
   };
 
