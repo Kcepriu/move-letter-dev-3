@@ -1,23 +1,21 @@
 export class Canvas {
   constructor(classNameCanvas = 'canvas-field') {
     this.canvasRef = document.querySelector(`.${classNameCanvas}`);
-    // this.#addListeners();
+    this.#addListeners();
+    this.isAllowDrawing = false;
   }
 
   #addListeners() {
-    window.addEventListener('resize', this.resizeCanvas.bind(this));
-    document.addEventListener(
-      'DOMContentLoaded',
-      this.#listenerCanvas.bind(this)
-    );
+    window.addEventListener('resize', this.resizeCanvas);
+    document.addEventListener('DOMContentLoaded', this.listenerCanvas);
   }
 
-  resizeCanvas() {
+  resizeCanvas = () => {
     this.canvasRef.width = window.innerWidth;
     this.canvasRef.height = window.innerHeight;
-  }
+  };
 
-  #listenerCanvas() {
+  listenerCanvas = () => {
     let isDrawing = false;
     let startX, startY;
 
@@ -30,10 +28,10 @@ export class Canvas {
     };
 
     canvas.addEventListener('mousemove', event => {
-      if (!isDrawing) return;
+      if (!isDrawing || !this.isAllowDrawing) return;
 
       const x = event.clientX - canvas.getBoundingClientRect().left;
-      const y = event.clientY - canvas.getBoundingClientRect().top + 25;
+      const y = event.clientY - canvas.getBoundingClientRect().top;
 
       const width = x - startX;
       const height = y - startY;
@@ -48,11 +46,11 @@ export class Canvas {
     canvas.addEventListener('mousedown', event => {
       isDrawing = true;
       startX = event.clientX - canvas.getBoundingClientRect().left;
-      startY = event.clientY - canvas.getBoundingClientRect().top + 25;
+      startY = event.clientY - canvas.getBoundingClientRect().top;
     });
 
     canvas.addEventListener('mouseup', stopDrawing);
 
     canvas.addEventListener('mouseleave', stopDrawing);
-  }
+  };
 }

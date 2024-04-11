@@ -1,5 +1,7 @@
 import { NodeFunction } from './nodeFunctions';
 import { MovingStructure } from './movingStructure';
+import { Canvas } from './canvas';
+import { RecSelection } from './recSelection';
 
 export class TextsDocument {
   #isControlDown = false;
@@ -7,13 +9,14 @@ export class TextsDocument {
   #isMovingLetter = false;
   #isAllowMovingLetter = false;
   #isShowMovingText = false;
+  #isNotCleanSelectedText = false;
 
   constructor(
     classNameTextsDocument = 'texts-document',
     classNameTextLine = 'text-line',
     classNameMovingText = 'moving-test'
   ) {
-    this.classNameTextsDocument = classNameTextsDocument;
+    // this.classNameTextsDocument = classNameTextsDocument;
     this.classNameTextLine = classNameTextLine;
 
     this.textsDocumentRef = document.querySelector(
@@ -26,6 +29,11 @@ export class TextsDocument {
 
     this.nodeFunction = new NodeFunction(classNameTextLine);
     this.movingStructure = new MovingStructure();
+
+    this.recSelection = new RecSelection();
+
+    this.canvas = new Canvas();
+    this.canvas.resizeCanvas();
 
     this.#addListeners();
   }
@@ -120,8 +128,10 @@ export class TextsDocument {
     const foundElementWithLetter =
       this.nodeFunction.findElementWithLetter(point);
 
-    if (!foundElementWithLetter || !foundElementWithLetter.textContent)
+    if (!foundElementWithLetter || !foundElementWithLetter.textContent) {
+      this.#clearToMovingStructure();
       return false;
+    }
 
     if (this.movingStructure.isElementInStructure(foundElementWithLetter)) {
       this.movingStructure.deleteElementFromStructure(foundElementWithLetter);
@@ -137,6 +147,128 @@ export class TextsDocument {
   #movingChosenLetter() {
     if (!this.movingStructure.elementToMove) return;
     this.movingStructure.toMoveLetters();
+  }
+
+  // * Selected area
+  #mouseMoveSelection = e => {
+    // * 0. Set current position
+    this.recSelection.setCurrentPoint({
+      x: e.clientX,
+      y: e.clientY,
+    });
+
+    // * 1. lost a previously found string
+    if (
+      this.movingStructure.isExistOriginalFromDocument() &&
+      !this.recSelection.isAxisInRec()
+    ) {
+      this.recSelection.axisY = 0;
+      this.#clearToMovingStructure();
+    }
+
+    // * 2. Search for a element with string
+    if (!this.movingStructure.isExistOriginalFromDocument())
+      this.#foundWorkElement();
+
+    // * 4. Haven't found yet
+    if (!this.movingStructure.isExistOriginalFromDocument()) return;
+
+    // * 5. Look for letters
+    this.#foundLetterInRec();
+  };
+
+  #foundWorkElement() {
+    const textElements = this.textsDocumentRef.querySelectorAll(
+      `.${this.classNameTextLine}`
+    );
+
+    if (textElements.length === 0) return;
+
+    let foundElementFrom = null;
+
+    for (const element of textElements) {
+      const recElement = element.getBoundingClientRect();
+
+      if (
+        !this.recSelection.isCoordinateYInRec(recElement.top) &&
+        !this.recSelection.isCoordinateYInRec(recElement.bottom) &&
+        !this.recSelection.isStartSelectInElementOnAxiosY(
+          recElement.top,
+          recElement.bottom
+        )
+      )
+        continue;
+
+      if (
+        recElement.top > this.recSelection.currentPoint.y &&
+        recElement.bottom > this.recSelection.currentPoint.y
+      )
+        break;
+      console.log('add element', element);
+
+      foundElementFrom = element;
+      break;
+    }
+
+    if (!foundElementFrom) return;
+
+    this.movingStructure.addElementFrom(foundElementFrom);
+    if (!this.nodeFunction.replaceSplitsCopyTextElement(foundElementFrom)) {
+      this.#clearToMovingStructure();
+      return;
+    }
+
+    this.recSelection.axisY = this.recSelection.currentPoint.y;
+  }
+
+  #foundLetterInRec() {
+    const children = this.movingStructure.elementFrom.children;
+
+    const leftCoordinate = this.recSelection.leftCoordinate();
+    const rightCoordinate = this.recSelection.rightCoordinate();
+
+    const newMovingLetters = [];
+
+    for (const elementWithLetter of children) {
+      const rectElementWithLetter = elementWithLetter.getBoundingClientRect();
+
+      if (elementWithLetter.offsetLeft < leftCoordinate) continue;
+      if (elementWithLetter.offsetLeft > rightCoordinate) break;
+
+      if (this.recSelection.isElementInSelected(rectElementWithLetter))
+        newMovingLetters.push(elementWithLetter);
+    }
+
+    if (newMovingLetters.length === 0) {
+      this.movingStructure.clearMovingLetters();
+      return;
+    }
+
+    this.#combineWithMovingLetters(newMovingLetters);
+  }
+
+  #combineWithMovingLetters(newMovingLetters) {
+    const movingLetters = this.movingStructure.movingLetters;
+
+    for (let i = movingLetters.length - 1; i > 0; i--) {
+      const indexElement = newMovingLetters.findIndex(
+        element => element === movingLetters[i]
+      );
+
+      if (indexElement === -1) {
+        // delete from movingLetters
+        movingLetters[i].dataset.selection = false;
+        movingLetters.splice(i, 1);
+      } else {
+        //delete from newMovingLetters
+        newMovingLetters.splice(indexElement, 1);
+      }
+    }
+
+    for (const elementWithLetter of newMovingLetters) {
+      this.movingStructure.addElementToStructure(elementWithLetter);
+      elementWithLetter.dataset.selection = true;
+    }
   }
 
   // * Moving text
@@ -159,30 +291,16 @@ export class TextsDocument {
   };
 
   // * Handles
-  #handleMouseDown = e => {
-    this.#isMouseDown = true;
-    this.#isAllowMovingLetter = true;
-    if (!this.#isControlDown && e.ctrlKey) this.#isControlDown = true;
-
-    if (
-      !this.#addLetterToMovingStructure({
-        x: e.clientX,
-        y: e.clientY,
-      })
-    )
-      return;
-
-    this.isMovingLetter = true;
-
-    document.addEventListener('mousemove', this.#handleMouseMove);
-  };
-
   #handleMouseUp = e => {
     this.#isMouseDown = false;
     this.#isAllowMovingLetter = false;
     this.#hideMovingText();
 
     document.removeEventListener('mousemove', this.#handleMouseMove);
+    document.removeEventListener('mousemove', this.#handleMouseMoveSelection);
+
+    this.recSelection.clearRec();
+    this.canvas.isAllowDrawing = false;
 
     if (this.#isControlDown) return;
 
@@ -195,27 +313,54 @@ export class TextsDocument {
       this.#movingChosenLetter();
     }
 
-    this.#clearToMovingStructure();
+    if (!this.#isNotCleanSelectedText) {
+      this.#clearToMovingStructure();
+    }
 
     this.#isMovingLetter = false;
   };
 
-  // #handleMouseMove = _.debounce(e => {
-  //   if (!this.#isAllowMovingLetter) return;
+  #handleMouseDown = e => {
+    this.#isMouseDown = true;
+    this.#isAllowMovingLetter = true;
 
-  //   this.#isMovingLetter = true;
+    if (!this.#isControlDown && e.ctrlKey) this.#isControlDown = true;
 
-  //   console.log('handleMouseMove', e.clientX, e.clientY);
-  // }, 300);
+    if (!this.#isNotCleanSelectedText) {
+      const operationIsCorrect = this.#addLetterToMovingStructure({
+        x: e.clientX,
+        y: e.clientY,
+      });
+
+      if (!operationIsCorrect) {
+        document.addEventListener('mousemove', this.#handleMouseMoveSelection);
+        this.canvas.isAllowDrawing = true;
+        this.#isNotCleanSelectedText = true;
+        this.recSelection.setStartPoint({
+          x: e.clientX,
+          y: e.clientY,
+        });
+        return;
+      }
+    }
+
+    this.isMovingLetter = true;
+    this.#isNotCleanSelectedText = false;
+
+    document.addEventListener('mousemove', this.#handleMouseMove);
+  };
 
   #handleMouseMove = e => {
     if (!this.#isAllowMovingLetter) return;
 
     this.#isMovingLetter = true;
+
     if (!this.#isShowMovingText) this.#showMovingText();
 
     this.#moveMovingText({ x: e.clientX, y: e.clientY });
   };
+
+  #handleMouseMoveSelection = _.throttle(this.#mouseMoveSelection, 100);
 
   #handleKeyDown = e => {
     e.key === 'Control' && (this.#isControlDown = true);

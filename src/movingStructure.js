@@ -42,6 +42,10 @@ export class MovingStructure {
     );
   }
 
+  clearMovingLetters() {
+    this.movingLetters = [];
+  }
+
   addElementFrom(elementFrom) {
     this.elementFrom = elementFrom;
     this.originalElementFrom = elementFrom.cloneNode(true);
