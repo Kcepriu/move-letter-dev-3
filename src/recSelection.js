@@ -20,8 +20,8 @@ export class RecSelection {
   isAxisInRec() {
     return (
       this.startPoint.y !== this.currentPoint.y &&
-      ((this.startPoint.y <= this.axisY && this.axisY <= this.currentPoint.y) ||
-        (this.currentPoint.y <= this.axisY && this.axisY <= this.startPoint.y))
+      this.topCoordinate() <= this.axisY &&
+      this.axisY <= this.bottomCoordinate
     );
   }
 
@@ -74,7 +74,8 @@ export class RecSelection {
     //   this.rightCoordinate()
     // );
 
-    console.log(this.topCoordinate(), recElement.top, this.bottomCoordinate());
+    // console.log(this.topCoordinate(), recElement.top, this.bottomCoordinate());
+
     return (
       ((this.leftCoordinate() <= recElement.left &&
         recElement.left <= this.rightCoordinate()) ||

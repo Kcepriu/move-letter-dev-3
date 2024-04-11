@@ -151,13 +151,11 @@ export class TextsDocument {
 
   #movingChosenLetter(point) {
     this.#addMovingLetterToMovingStructure(point);
-
-    if (!this.movingStructure.elementToMove) return;
     this.movingStructure.toMoveLetters();
   }
 
   // * Selected area
-  #mouseMoveSelection = e => {
+  #mouseSelectionRec = e => {
     // * 0. Set current position
     this.recSelection.setCurrentPoint({
       x: e.clientX,
@@ -177,10 +175,10 @@ export class TextsDocument {
     if (!this.movingStructure.isExistOriginalFromDocument())
       this.#foundWorkElement();
 
-    // * 4. Haven't found yet
+    // * 3. Haven't found yet
     if (!this.movingStructure.isExistOriginalFromDocument()) return;
 
-    // * 5. Look for letters
+    // * 4. Look for letters
     this.#foundLetterInRec();
   };
 
@@ -211,8 +209,8 @@ export class TextsDocument {
         recElement.bottom > this.recSelection.currentPoint.y
       )
         break;
-      console.log('add element', element);
 
+      console.log('add element', element);
       foundElementFrom = element;
       break;
     }
@@ -220,6 +218,7 @@ export class TextsDocument {
     if (!foundElementFrom) return;
 
     this.movingStructure.addElementFrom(foundElementFrom);
+
     if (!this.nodeFunction.replaceSplitsCopyTextElement(foundElementFrom)) {
       this.#clearToMovingStructure();
       return;
@@ -257,7 +256,7 @@ export class TextsDocument {
   #combineWithMovingLetters(newMovingLetters) {
     const movingLetters = this.movingStructure.movingLetters;
 
-    for (let i = movingLetters.length - 1; i > 0; i--) {
+    for (let i = movingLetters.length - 1; i >= 0; i--) {
       const indexElement = newMovingLetters.findIndex(
         element => element === movingLetters[i]
       );
@@ -276,12 +275,12 @@ export class TextsDocument {
       this.movingStructure.addElementToStructure(elementWithLetter);
       elementWithLetter.dataset.selection = true;
     }
+    this.movingStructure.sortMovingLetters();
+    //ToDO sort array
   }
 
   // * Moving text
   #showMovingText = () => {
-    console.log('🚀 ~ showMovingText:');
-
     this.movingTextsDocumentRef.style.display = 'block';
     this.movingTextsDocumentRef.textContent =
       this.movingStructure.getTextMovingLetters();
@@ -309,7 +308,7 @@ export class TextsDocument {
     this.canvas.isAllowDrawing = true;
     this.recSelection.setStartPoint(point);
 
-    document.addEventListener('mousemove', this.#handleMouseMoveSelection);
+    document.addEventListener('mousemove', this.#handleMouseSelectionRec);
     document.removeEventListener('mousemove', this.#handleMouseMoveLetter);
   }
 
@@ -371,7 +370,7 @@ export class TextsDocument {
     };
 
     document.removeEventListener('mousemove', this.#handleMouseMoveLetter);
-    document.removeEventListener('mousemove', this.#handleMouseMoveSelection);
+    document.removeEventListener('mousemove', this.#handleMouseSelectionRec);
 
     if (this.#isControlDown) return;
 
@@ -401,7 +400,7 @@ export class TextsDocument {
     this.#moveMovingText({ x: e.clientX, y: e.clientY });
   };
 
-  #handleMouseMoveSelection = _.throttle(this.#mouseMoveSelection, 100);
+  #handleMouseSelectionRec = _.throttle(this.#mouseSelectionRec, 100);
 
   #handleKeyUp = e => {
     if (e.key !== 'Control') return;

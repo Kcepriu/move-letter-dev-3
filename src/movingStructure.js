@@ -1,14 +1,3 @@
-const emptyMovingStructure = {
-  elementFrom: null,
-  originalElementFrom: null,
-
-  elementTo: null,
-  originalElementTo: null,
-
-  movingLetters: [],
-  letterWhereToInsert: null,
-};
-
 export class MovingStructure {
   constructor() {
     this.clearStructure();
@@ -56,6 +45,13 @@ export class MovingStructure {
     this.originalElementTo = elementFrom.cloneNode(true);
   }
 
+  sortMovingLetters() {
+    this.movingLetters.sort(
+      (element1, element2) =>
+        Number(element1.dataset.number) - Number(element2.dataset.number)
+    );
+  }
+
   countInMovingLetters() {
     return this.movingLetters.length;
   }
@@ -97,6 +93,8 @@ export class MovingStructure {
   }
 
   toMoveLetters() {
+    if (!this.elementToMove) return;
+
     if (this.isExistOriginalToDocument()) {
       this.#movingChosenLetterToAnotherElement();
     } else {
@@ -125,6 +123,8 @@ export class MovingStructure {
   }
 
   #movingChosenLetterToThisElement() {
+    // TODO
+    //Треба паревірити чи не кидаємо на "вибраний" елемент
     //add
     const originalTextContent = this.originalElementFrom.textContent;
     const numberInsertPosition = this.elementToMove.dataset.number;
