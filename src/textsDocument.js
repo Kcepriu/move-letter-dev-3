@@ -4,12 +4,19 @@ import { Canvas } from './canvas';
 import { RecSelection } from './recSelection';
 
 export class TextsDocument {
+  #statuses = {
+    ready: 'READY',
+    selected_rec: 'SELECTED_REC',
+    moving_letter: 'MOVING_LETTER',
+    selected_letter: 'SELECTED_LETTED',
+    wait_moving_rec: 'WAIT_MOVING_REC',
+  };
+
+  #currentStatusOperation = this.#statuses.ready;
+
   #isControlDown = false;
   #isMouseDown = false;
-  #isMovingLetter = false;
-  #isAllowMovingLetter = false;
   #isShowMovingText = false;
-  #isNotCleanSelectedText = false;
 
   constructor(
     classNameTextsDocument = 'texts-document',
@@ -46,9 +53,6 @@ export class TextsDocument {
   #addListeners() {
     document.addEventListener('mousedown', this.#handleMouseDown);
     document.addEventListener('mouseup', this.#handleMouseUp);
-    // document.addEventListener('mouseleave', this.#handleMouseLeave);
-
-    document.addEventListener('keydown', this.#handleKeyDown);
     document.addEventListener('keyup', this.#handleKeyUp);
   }
 
@@ -103,6 +107,7 @@ export class TextsDocument {
       this.classNameTextLine,
       point
     );
+
     // We don't found element or we have already added a letter from another block
     if (
       !foundElementFrom ||
@@ -141,10 +146,12 @@ export class TextsDocument {
       foundElementWithLetter.dataset.selection = true;
     }
 
-    return true;
+    return this.movingStructure.isMovingLettersNotEmpty();
   }
 
-  #movingChosenLetter() {
+  #movingChosenLetter(point) {
+    this.#addMovingLetterToMovingStructure(point);
+
     if (!this.movingStructure.elementToMove) return;
     this.movingStructure.toMoveLetters();
   }
@@ -273,6 +280,8 @@ export class TextsDocument {
 
   // * Moving text
   #showMovingText = () => {
+    console.log('🚀 ~ showMovingText:');
+
     this.movingTextsDocumentRef.style.display = 'block';
     this.movingTextsDocumentRef.textContent =
       this.movingStructure.getTextMovingLetters();
@@ -290,70 +299,102 @@ export class TextsDocument {
     this.movingTextsDocumentRef.style.top = point.y + 5 + 'px';
   };
 
-  // * Handles
-  #handleMouseUp = e => {
-    this.#isMouseDown = false;
-    this.#isAllowMovingLetter = false;
+  // * Status operation
+  #isStatusOperation(status) {
+    return this.#currentStatusOperation === status;
+  }
+
+  #toStatusSelectedRec(point) {
+    this.#currentStatusOperation = this.#statuses.selected_rec;
+    this.canvas.isAllowDrawing = true;
+    this.recSelection.setStartPoint(point);
+
+    document.addEventListener('mousemove', this.#handleMouseMoveSelection);
+    document.removeEventListener('mousemove', this.#handleMouseMoveLetter);
+  }
+
+  #toStatusSelectedLetter() {
+    this.#currentStatusOperation = this.#statuses.selected_letter;
+    document.addEventListener('mousemove', this.#handleMouseMoveLetter);
+  }
+
+  #toStatusMovingLetter() {
+    this.#currentStatusOperation = this.#statuses.moving_letter;
+  }
+
+  #toStatusReady() {
+    this.#currentStatusOperation = this.#statuses.ready;
+  }
+
+  #toStatusWaitMovingRec() {
+    this.#currentStatusOperation = this.#statuses.wait_moving_rec;
+  }
+
+  #hideMovingElements() {
     this.#hideMovingText();
-
-    document.removeEventListener('mousemove', this.#handleMouseMove);
-    document.removeEventListener('mousemove', this.#handleMouseMoveSelection);
-
     this.recSelection.clearRec();
     this.canvas.isAllowDrawing = false;
+  }
+
+  // * Handles
+  #handleMouseDown = e => {
+    this.#isMouseDown = true;
+    this.#isControlDown = e.ctrlKey;
+
+    const currentPoint = {
+      x: e.clientX,
+      y: e.clientY,
+    };
+
+    if (this.#isStatusOperation(this.#statuses.wait_moving_rec)) {
+      //Треба подивитись чи тикнули по вибраній області.
+      //Якщо так, то переходимо на статус перетягування, якщо ні, то ичищаємо все
+      this.#toStatusMovingLetter();
+      document.addEventListener('mousemove', this.#handleMouseMoveLetter);
+      return;
+    }
+
+    if (this.#addLetterToMovingStructure(currentPoint)) {
+      this.#toStatusSelectedLetter();
+    } else {
+      this.#toStatusSelectedRec(currentPoint);
+    }
+  };
+
+  #handleMouseUp = e => {
+    this.#isMouseDown = false;
+    this.#hideMovingElements();
+
+    const currentPoint = {
+      x: e.clientX,
+      y: e.clientY,
+    };
+
+    document.removeEventListener('mousemove', this.#handleMouseMoveLetter);
+    document.removeEventListener('mousemove', this.#handleMouseMoveSelection);
 
     if (this.#isControlDown) return;
 
-    if (this.#isMovingLetter) {
-      this.#addMovingLetterToMovingStructure({
-        x: e.clientX,
-        y: e.clientY,
-      });
-
-      this.#movingChosenLetter();
+    if (this.#isStatusOperation(this.#statuses.moving_letter)) {
+      this.#movingChosenLetter(currentPoint);
     }
 
-    if (!this.#isNotCleanSelectedText) {
+    if (this.#isStatusOperation(this.#statuses.selected_rec)) {
+      this.#toStatusWaitMovingRec();
+    } else {
       this.#clearToMovingStructure();
+      this.#toStatusReady();
     }
-
-    this.#isMovingLetter = false;
   };
 
-  #handleMouseDown = e => {
-    this.#isMouseDown = true;
-    this.#isAllowMovingLetter = true;
+  #handleMouseMoveLetter = e => {
+    if (
+      !this.#isStatusOperation(this.#statuses.selected_letter) &&
+      !this.#isStatusOperation(this.#statuses.moving_letter)
+    )
+      return;
 
-    if (!this.#isControlDown && e.ctrlKey) this.#isControlDown = true;
-
-    if (!this.#isNotCleanSelectedText) {
-      const operationIsCorrect = this.#addLetterToMovingStructure({
-        x: e.clientX,
-        y: e.clientY,
-      });
-
-      if (!operationIsCorrect) {
-        document.addEventListener('mousemove', this.#handleMouseMoveSelection);
-        this.canvas.isAllowDrawing = true;
-        this.#isNotCleanSelectedText = true;
-        this.recSelection.setStartPoint({
-          x: e.clientX,
-          y: e.clientY,
-        });
-        return;
-      }
-    }
-
-    this.isMovingLetter = true;
-    this.#isNotCleanSelectedText = false;
-
-    document.addEventListener('mousemove', this.#handleMouseMove);
-  };
-
-  #handleMouseMove = e => {
-    if (!this.#isAllowMovingLetter) return;
-
-    this.#isMovingLetter = true;
+    this.#toStatusMovingLetter();
 
     if (!this.#isShowMovingText) this.#showMovingText();
 
@@ -361,10 +402,6 @@ export class TextsDocument {
   };
 
   #handleMouseMoveSelection = _.throttle(this.#mouseMoveSelection, 100);
-
-  #handleKeyDown = e => {
-    e.key === 'Control' && (this.#isControlDown = true);
-  };
 
   #handleKeyUp = e => {
     if (e.key !== 'Control') return;

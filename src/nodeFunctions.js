@@ -25,29 +25,34 @@ export class NodeFunction {
   replaceSplitsCopyTextElement(textElement) {
     if (!textElement) return false;
 
-    const text_nodes = Array.from(textElement.childNodes).filter(node => {
-      return (
-        node.nodeType == Node.TEXT_NODE && node.nodeValue.match(/[a-zA-Z]{2,}/)
-      );
-    });
-
-    if (text_nodes.length === 0) return false;
-
-    text_nodes.forEach(node => {
-      // const words = node.nodeValue.split(/(\s+)/);
-      const letters = node.nodeValue.split('');
-
-      const fragment = document.createDocumentFragment();
-
-      letters.forEach((letter, index) => {
-        const letterElem = document.createElement('word');
-        letterElem.className = this.classNameTextLine;
-        letterElem.dataset.number = index;
-        letterElem.textContent = letter;
-        fragment.appendChild(letterElem);
+    try {
+      const text_nodes = Array.from(textElement.childNodes).filter(node => {
+        return (
+          node.nodeType == Node.TEXT_NODE &&
+          node.nodeValue.match(/[a-zA-Z]{2,}/)
+        );
       });
-      this.replaceChild(fragment, node);
-    });
+
+      if (text_nodes.length === 0) return false;
+
+      text_nodes.forEach(node => {
+        // const words = node.nodeValue.split(/(\s+)/);
+        const letters = node.nodeValue.split('');
+
+        const fragment = document.createDocumentFragment();
+
+        letters.forEach((letter, index) => {
+          const letterElem = document.createElement('word');
+          letterElem.className = this.classNameTextLine;
+          letterElem.dataset.number = index;
+          letterElem.textContent = letter;
+          fragment.appendChild(letterElem);
+        });
+        this.replaceChild(fragment, node);
+      });
+    } catch {
+      return false;
+    }
 
     return true;
   }

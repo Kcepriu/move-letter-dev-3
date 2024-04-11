@@ -38,7 +38,7 @@ export class Canvas {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.beginPath();
-      ctx.strokeStyle = 'green';
+      ctx.strokeStyle = 'gray';
       ctx.rect(startX, startY, width, height);
       ctx.stroke();
     });

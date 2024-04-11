@@ -56,6 +56,9 @@ export class MovingStructure {
     this.originalElementTo = elementFrom.cloneNode(true);
   }
 
+  countInMovingLetters() {
+    return this.movingLetters.length;
+  }
   isElementInStructure(element) {
     return this.movingLetters.find(letterElement => letterElement === element);
   }
@@ -87,6 +90,10 @@ export class MovingStructure {
 
   isSavedElement(element) {
     return !!this.elementFrom;
+  }
+
+  isEmptyMovingLetters() {
+    return this.movingLetters.length === 0;
   }
 
   toMoveLetters() {
