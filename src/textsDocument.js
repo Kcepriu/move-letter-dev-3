@@ -23,7 +23,6 @@ export class TextsDocument {
     classNameTextLine = 'text-line',
     classNameMovingText = 'moving-test'
   ) {
-    // this.classNameTextsDocument = classNameTextsDocument;
     this.classNameTextLine = classNameTextLine;
 
     this.textsDocumentRef = document.querySelector(
@@ -39,7 +38,9 @@ export class TextsDocument {
 
     this.recSelection = new RecSelection();
 
-    this.canvas = new Canvas();
+    this.canvas = new Canvas({
+      elementOwner: this.textsDocumentRef,
+    });
     this.canvas.resizeCanvas();
 
     this.#addListeners();
@@ -76,6 +77,17 @@ export class TextsDocument {
     this.#restoreOriginalElement();
 
     this.movingStructure.clearStructure();
+  }
+
+  #isUnderCursorSelectedTextElement(point) {
+    const foundElementTo = this.nodeFunction.findLineElementUnderCoordinates(
+      this.classNameTextLine,
+      point
+    );
+
+    if (!foundElementTo) return false;
+
+    return !!this.movingStructure.isElementInStructure(foundElementTo);
   }
 
   #addMovingLetterToMovingStructure(point) {
@@ -118,6 +130,7 @@ export class TextsDocument {
     )
       return false;
 
+    // is item has already been added and transformed
     if (
       !this.movingStructure.isSavedElement() ||
       !this.movingStructure.isSavedElementFromEqualElementFrom(foundElementFrom)
@@ -163,12 +176,15 @@ export class TextsDocument {
     });
 
     // * 1. lost a previously found string
+    const elementFrom = this.movingStructure.elementFrom;
     if (
-      this.movingStructure.isExistOriginalFromDocument() &&
-      !this.recSelection.isAxisInRec()
+      !!elementFrom &&
+      !this.recSelection.isElementInRecSelection(
+        elementFrom.getBoundingClientRect()
+      )
     ) {
-      this.recSelection.axisY = 0;
       this.#clearToMovingStructure();
+      this.#clearUnnecessarySelectedElement();
     }
 
     // * 2. Search for a element with string
@@ -179,7 +195,7 @@ export class TextsDocument {
     if (!this.movingStructure.isExistOriginalFromDocument()) return;
 
     // * 4. Look for letters
-    this.#foundLetterInRec();
+    this.#foundAndSelectLetterInRec();
   };
 
   #foundWorkElement() {
@@ -195,39 +211,36 @@ export class TextsDocument {
       const recElement = element.getBoundingClientRect();
 
       if (
-        !this.recSelection.isCoordinateYInRec(recElement.top) &&
-        !this.recSelection.isCoordinateYInRec(recElement.bottom) &&
-        !this.recSelection.isStartSelectInElementOnAxiosY(
-          recElement.top,
-          recElement.bottom
-        )
-      )
-        continue;
-
-      if (
-        recElement.top > this.recSelection.currentPoint.y &&
-        recElement.bottom > this.recSelection.currentPoint.y
-      )
+        this.recSelection.isElementInRecSelection(recElement) &&
+        this.#isElementWithText(element)
+      ) {
+        foundElementFrom = element;
         break;
+      }
 
-      console.log('add element', element);
-      foundElementFrom = element;
-      break;
+      if (this.recSelection.isElementUnderRecSelection(recElement)) break;
     }
 
     if (!foundElementFrom) return;
 
     this.movingStructure.addElementFrom(foundElementFrom);
-
-    if (!this.nodeFunction.replaceSplitsCopyTextElement(foundElementFrom)) {
-      this.#clearToMovingStructure();
-      return;
-    }
-
-    this.recSelection.axisY = this.recSelection.currentPoint.y;
   }
 
-  #foundLetterInRec() {
+  #isElementWithText(element) {
+    this.movingStructure.addElementFrom(element);
+
+    this.nodeFunction.replaceSplitsCopyTextElement(element);
+
+    const foundLetters = this.#foundLetterInRec(true);
+
+    if (foundLetters.length === 0) {
+      this.#clearToMovingStructure();
+      return false;
+    }
+    return true;
+  }
+
+  #foundLetterInRec(onlyFirst = false) {
     const children = this.movingStructure.elementFrom.children;
 
     const leftCoordinate = this.recSelection.leftCoordinate();
@@ -238,19 +251,32 @@ export class TextsDocument {
     for (const elementWithLetter of children) {
       const rectElementWithLetter = elementWithLetter.getBoundingClientRect();
 
-      if (elementWithLetter.offsetLeft < leftCoordinate) continue;
-      if (elementWithLetter.offsetLeft > rightCoordinate) break;
+      if (rectElementWithLetter.right < leftCoordinate) continue;
+      if (rectElementWithLetter.left > rightCoordinate) continue; //For multiline text there can't write break
 
-      if (this.recSelection.isElementInSelected(rectElementWithLetter))
+      if (
+        this.recSelection.isElementInSelectedAxisX(rectElementWithLetter) &&
+        this.recSelection.isElementInSelectedAxisY(rectElementWithLetter)
+      ) {
         newMovingLetters.push(elementWithLetter);
+        if (onlyFirst) break;
+      }
     }
+
+    return newMovingLetters;
+  }
+
+  #foundAndSelectLetterInRec() {
+    const newMovingLetters = this.#foundLetterInRec();
 
     if (newMovingLetters.length === 0) {
       this.movingStructure.clearMovingLetters();
+      this.#clearUnnecessarySelectedElement();
       return;
     }
 
     this.#combineWithMovingLetters(newMovingLetters);
+    this.#clearUnnecessarySelectedElement();
   }
 
   #combineWithMovingLetters(newMovingLetters) {
@@ -271,12 +297,38 @@ export class TextsDocument {
       }
     }
 
-    for (const elementWithLetter of newMovingLetters) {
-      this.movingStructure.addElementToStructure(elementWithLetter);
-      elementWithLetter.dataset.selection = true;
+    if (newMovingLetters.length > 0) {
+      const rectFirstLetter =
+        movingLetters.length > 0
+          ? movingLetters[0].getBoundingClientRect()
+          : newMovingLetters[0].getBoundingClientRect();
+
+      for (const elementWithLetter of newMovingLetters) {
+        if (
+          rectFirstLetter &&
+          this.recSelection.isElementInAnotherLine(
+            rectFirstLetter,
+            elementWithLetter.getBoundingClientRect()
+          )
+        )
+          continue;
+
+        this.movingStructure.addElementToStructure(elementWithLetter);
+        elementWithLetter.dataset.selection = true;
+      }
     }
+
     this.movingStructure.sortMovingLetters();
-    //ToDO sort array
+  }
+
+  #clearUnnecessarySelectedElement() {
+    const selectedElements = this.textsDocumentRef.querySelectorAll(
+      `.${this.classNameTextLine}[data-selection = "true"]`
+    );
+    for (const element of selectedElements) {
+      if (this.movingStructure.isElementInStructure(element)) continue;
+      element.dataset.selection = false;
+    }
   }
 
   // * Moving text
@@ -346,10 +398,12 @@ export class TextsDocument {
     };
 
     if (this.#isStatusOperation(this.#statuses.wait_moving_rec)) {
-      //Треба подивитись чи тикнули по вибраній області.
-      //Якщо так, то переходимо на статус перетягування, якщо ні, то ичищаємо все
-      this.#toStatusMovingLetter();
-      document.addEventListener('mousemove', this.#handleMouseMoveLetter);
+      if (this.#isUnderCursorSelectedTextElement(currentPoint)) {
+        this.#toStatusMovingLetter();
+        document.addEventListener('mousemove', this.#handleMouseMoveLetter);
+      } else {
+        this.#clearToMovingStructure();
+      }
       return;
     }
 
@@ -378,7 +432,10 @@ export class TextsDocument {
       this.#movingChosenLetter(currentPoint);
     }
 
-    if (this.#isStatusOperation(this.#statuses.selected_rec)) {
+    if (
+      this.#isStatusOperation(this.#statuses.selected_rec) &&
+      !this.movingStructure.isEmptyMovingLetters()
+    ) {
       this.#toStatusWaitMovingRec();
     } else {
       this.#clearToMovingStructure();
@@ -400,7 +457,9 @@ export class TextsDocument {
     this.#moveMovingText({ x: e.clientX, y: e.clientY });
   };
 
-  #handleMouseSelectionRec = _.throttle(this.#mouseSelectionRec, 100);
+  #handleMouseSelectionRec = _.throttle(this.#mouseSelectionRec, 100, {
+    trailing: true,
+  });
 
   #handleKeyUp = e => {
     if (e.key !== 'Control') return;

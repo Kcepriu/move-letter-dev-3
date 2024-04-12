@@ -29,7 +29,7 @@ export class NodeFunction {
       const text_nodes = Array.from(textElement.childNodes).filter(node => {
         return (
           node.nodeType == Node.TEXT_NODE &&
-          node.nodeValue.match(/[a-zA-Z]{2,}/)
+          node.nodeValue.match(/[a-zA-Z0-9]{2,}/)
         );
       });
 

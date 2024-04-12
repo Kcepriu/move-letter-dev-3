@@ -14,14 +14,20 @@ export class RecSelection {
   clearRec() {
     this.startPoint = { x: 0, y: 0 };
     this.currentPoint = { x: 0, y: 0 };
-    this.axisY = 0;
   }
 
-  isAxisInRec() {
+  isElementInRecSelection(recElement) {
     return (
-      this.startPoint.y !== this.currentPoint.y &&
-      this.topCoordinate() <= this.axisY &&
-      this.axisY <= this.bottomCoordinate
+      this.isCoordinateYInRec(recElement.top) ||
+      this.isCoordinateYInRec(recElement.bottom) ||
+      this.isStartSelectInElementOnAxisY(recElement)
+    );
+  }
+
+  isElementUnderRecSelection(recElement) {
+    return (
+      recElement.top > this.currentPoint.y &&
+      recElement.bottom > this.currentPoint.y
     );
   }
 
@@ -39,9 +45,11 @@ export class RecSelection {
     );
   }
 
-  isStartSelectInElementOnAxiosY(top, bottom) {
-    console.log(top <= this.startPoint.y && this.startPoint.y <= bottom);
-    return top <= this.startPoint.y && this.startPoint.y <= bottom;
+  isStartSelectInElementOnAxisY(recElement) {
+    return (
+      recElement.top <= this.startPoint.y &&
+      this.startPoint.y <= recElement.bottom
+    );
   }
 
   oppositeVerticalAngle() {
@@ -67,15 +75,7 @@ export class RecSelection {
     return Math.max(this.startPoint.y, this.currentPoint.y);
   }
 
-  isElementInSelected(recElement) {
-    // console.log(
-    //   this.leftCoordinate(),
-    //   recElement.right,
-    //   this.rightCoordinate()
-    // );
-
-    // console.log(this.topCoordinate(), recElement.top, this.bottomCoordinate());
-
+  isElementInSelectedAxisX(recElement) {
     return (
       ((this.leftCoordinate() <= recElement.left &&
         recElement.left <= this.rightCoordinate()) ||
@@ -85,6 +85,17 @@ export class RecSelection {
         recElement.top <= this.bottomCoordinate()) ||
         (this.topCoordinate() <= recElement.bottom &&
           recElement.bottom <= this.bottomCoordinate()))
+    );
+  }
+
+  isElementInSelectedAxisY(recElement) {
+    return true;
+  }
+
+  isElementInAnotherLine(recElement, recTestElement) {
+    return (
+      recTestElement.bottom < recElement.top ||
+      recTestElement.top > recElement.bottom
     );
   }
 }
