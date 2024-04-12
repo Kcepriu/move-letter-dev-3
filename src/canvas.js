@@ -1,6 +1,15 @@
 export class Canvas {
-  constructor(classNameCanvas = 'canvas-field') {
-    this.canvasRef = document.querySelector(`.${classNameCanvas}`);
+  constructor(
+    { classNameCanvas, elementOwner } = {
+      classNameCanvas: 'canvas-field',
+      elementOwner: null,
+    }
+  ) {
+    this.canvasRef = document.querySelector(
+      `.${classNameCanvas || 'canvas-field'}`
+    );
+    this.elementOwner = elementOwner;
+
     this.#addListeners();
     this.isAllowDrawing = false;
   }
@@ -11,8 +20,15 @@ export class Canvas {
   }
 
   resizeCanvas = () => {
-    this.canvasRef.width = window.innerWidth;
-    this.canvasRef.height = window.innerHeight;
+    if (this.elementOwner) {
+      const recElementOwner = this.elementOwner.getBoundingClientRect();
+
+      this.canvasRef.width = recElementOwner.width;
+      this.canvasRef.height = recElementOwner.height;
+    } else {
+      this.canvasRef.width = window.innerWidth;
+      this.canvasRef.height = window.innerHeight;
+    }
   };
 
   listenerCanvas = () => {
@@ -38,7 +54,7 @@ export class Canvas {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.beginPath();
-      ctx.strokeStyle = 'green';
+      ctx.strokeStyle = 'gray';
       ctx.rect(startX, startY, width, height);
       ctx.stroke();
     });
